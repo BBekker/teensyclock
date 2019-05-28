@@ -3,13 +3,14 @@
 #include <IntervalTimer.h>
 #include <Wire.h>
 #include "clockStepper.h"
+#include <math.h>
 
 #define STEPPER_STEPS_PER_ROTATION 64
 #define STEPPER_GEAR_RATIO 25792/405
 #define WHEEL_GEAR_RATIO  100/99
 #define STEPS_PER_ROTATION STEPPER_STEPS_PER_ROTATION * STEPPER_GEAR_RATIO * WHEEL_GEAR_RATIO
 
-#define ROTATION_PER_STEP 0.000048003699327057935052324954148236055669435753587226237
+//#define ROTATION_PER_STEP 0.000048003699327057935052324954148236055669435753587226237*16.0
 #define ROTATION_PER_SECOND ( 1.0 / 12.0 / 60.0 / 60.0)
 #define ROTATION_PER_MINUTE ( 1.0 / 12.0 / 60.0 )
 #define ROTATION_PER_HOUR (1.0 / 12.0)
@@ -19,15 +20,16 @@
 #define DS3231_CONTROL  0x0E
 #define DS3231_STATUSREG 0x0F
 
-#define ANGLE_OFFSET 0.0
+#define ANGLE_OFFSET (6.90/12.0)
 
-#define HALL_PIN 23
+#define HALL_PIN 14
 #define LED_PIN 13
 
 
 IntervalTimer clocktick;
 double target;
-ClockStepper steppermotor = ClockStepper(8, 12, 10, 11, 9);
+ClockStepper steppermotor = ClockStepper(AccelStepper::FULL4WIRE, 11, 10, 9, 12);
+//ClockStepper steppermotor = ClockStepper(AccelStepper::HALF4WIRE, 12, 10, 11, 9);
 
 
 //////////
@@ -82,6 +84,7 @@ void homing()
   {
     steppermotor.move(1);
     steppermotor.run();
+    delay(5);
   }
   steppermotor.angle = ANGLE_OFFSET;
 }
@@ -92,22 +95,31 @@ void homing()
  */
 void tick()
 {
-  target = hour() * ROTATION_PER_HOUR + minute() * ROTATION_PER_MINUTE + second() * ROTATION_PER_SECOND;
-  uint32_t steps_to_set = 0;
-  // Always move forward to reach target
-  if(target - steppermotor.angle >= 0)
-  { 
-    steps_to_set = (target - steppermotor.angle) / ROTATION_PER_STEP;
-  }
-  else
-  {
-    steps_to_set = (target - (steppermotor.angle-1.0)) / ROTATION_PER_STEP;
-  }
 
+  // We rotate the clock based on high accuracy angles
+  // This is because the gear ratio is some insane fraction of a rotation
+  // And this tick function will also not be perfectly accurate.
+  // So we solve that by just calculating these angles super inefficiently
+  // And then rotate one step when the error is too large.
+  
+  target = ((hour()%12) * ROTATION_PER_HOUR + minute() * ROTATION_PER_MINUTE + second() * ROTATION_PER_SECOND);
+  int steps_to_set = 0;
+  steps_to_set = (target - steppermotor.angle) / ROTATION_PER_STEP;
+
+  //Beunfix for wraparound
+  if(steps_to_set < (int)(-0.5 / ROTATION_PER_STEP))
+  {
+     steps_to_set += 1.0/ROTATION_PER_STEP;
+  }
   
   //Print current time for debug
-  Serial.printf("%d:%d:%d , %d-%d-%d \n", hour(), minute(), second(), day(), month(), year());
+  Serial.println(target,10);
+  Serial.println(steppermotor.angle,10);
+  Serial.printf("%d:%d:%d , %d-%d-%d, steps: %d \n", hour(), minute(), second(), day(), month(), year(), steps_to_set);
 
+  int posinhour = steppermotor.angle / ROTATION_PER_HOUR;
+  int posinmin = (steppermotor.angle - (posinhour * ROTATION_PER_HOUR)) /ROTATION_PER_MINUTE;
+  Serial.printf("current position time: %d:%d\n", posinhour, posinmin);
   steppermotor.move(steps_to_set);
 
   //Update our time with the real RTC time once a minute.
@@ -135,10 +147,11 @@ void setup() {
   pinMode(LED_PIN, OUTPUT);
 
   //Find zero point
-  steppermotor.setMaxSpeed(500);
+  steppermotor.setMaxSpeed(200);
+  steppermotor.setAcceleration(1000000);
+  Serial.write("Homing...\n");
+  //homing();
   steppermotor.setAcceleration(1000);
-  homing();
-
   //Start clock
   //Run tick function once every second
   clocktick.begin(tick, 1000000);

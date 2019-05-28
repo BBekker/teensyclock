@@ -1,6 +1,6 @@
 #include <AccelStepper.h>
 
-#define ROTATION_PER_STEP 0.000048003699327057935052324954148236055669435753587226237
+#define ROTATION_PER_STEP 0.0000960073986541158701046499082964721113388715071744524
 
 class ClockStepper : public AccelStepper 
 {
@@ -15,5 +15,5 @@ public:
 
 private:
   long previousStep;
-  void step3(long step);
+  void step4(long step);
 };
