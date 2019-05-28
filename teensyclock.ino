@@ -1,9 +1,8 @@
 #include <Time.h>
-#include <TimeLib.h>
 
 #include <IntervalTimer.h>
 #include <Wire.h>
-#include <AccelStepper.h>
+#include "clockStepper.h"
 
 #define STEPPER_STEPS_PER_ROTATION 64
 #define STEPPER_GEAR_RATIO 25792/405
@@ -20,13 +19,15 @@
 #define DS3231_CONTROL  0x0E
 #define DS3231_STATUSREG 0x0F
 
+#define ANGLE_OFFSET 0.0
+
 #define HALL_PIN 23
 #define LED_PIN 13
 
+
 IntervalTimer clocktick;
-double position; //Position in rotation
 double target;
-AccelStepper steppermotor = AccelStepper(8, 12, 10, 11, 9);
+ClockStepper steppermotor = ClockStepper(8, 12, 10, 11, 9);
 
 
 //////////
@@ -74,7 +75,15 @@ void receiveSerial()
 // The actual program is below here
 //////
 
-
+void homing()
+{
+  while(!digitalRead(HALL_PIN))
+  {
+    steppermotor.move(1);
+    steppermotor.run();
+  }
+  steppermotor.angle = ANGLE_OFFSET;
+}
 
 /*
  * Tick
@@ -82,21 +91,29 @@ void receiveSerial()
  */
 void tick()
 {
+  target = hour() * ROTATION_PER_HOUR + minute() * ROTATION_PER_MINUTE + second() * ROTATION_PER_SECOND;
+  uint32_t steps_to_set = 0;
+  // Always move forward to reach target
+  if(target - steppermotor.angle >= 0)
+  { 
+    steps_to_set = (target - steppermotor.angle) / ROTATION_PER_STEP;
+  }
+  else
+  {
+    steps_to_set = (target - (steppermotor.angle-1.0)) / ROTATION_PER_STEP;
+  }
+
+  
+  //Print current time for debug
+  Serial.printf("%d:%d:%d , %d-%d-%d \n", hour(), minute(), second(), day(), month(), year());
+
+  steppermotor.move(steps_to_set);
+
   //Update our time with the real RTC time once a minute.
   if(second() == 0)
   {   
     updateTime();
   }
-
-  target = hour() * ROTATION_PER_HOUR + minute() * ROTATION_PER_MINUTE + second() * ROTATION_PER_SECOND;
-
-  uint32_t steps_to_set = 
-  //Print current time for debug
-  Serial.printf("%d:%d:%d , %d-%d-%d \n", hour(), minute(), second(), day(), month(), year());
-
-  steppermotor.setMaxSpeed(500);
-  steppermotor.setAcceleration(1000);
-  steppermotor.move(50);
   
 }
 
@@ -106,8 +123,7 @@ void setup() {
   // put your setup code here, to run once:
   Serial.begin(9800);
   
-  //Run tick function once every second
-  clocktick.begin(tick, 1000000);
+
 
   //Read current time from RTC
   Wire.begin();
@@ -116,7 +132,15 @@ void setup() {
   //Prep hall sensor
   pinMode(HALL_PIN, INPUT_PULLUP);
   pinMode(LED_PIN, OUTPUT);
-  
+
+  //Find zero point
+  steppermotor.setMaxSpeed(500);
+  steppermotor.setAcceleration(1000);
+  homing();
+
+  //Start clock
+  //Run tick function once every second
+  clocktick.begin(tick, 1000000);
 }
 
 void loop() {
