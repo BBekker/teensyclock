@@ -77,7 +77,8 @@ void receiveSerial()
 
 void homing()
 {
-  while(!digitalRead(HALL_PIN))
+  //Low when sensing magnet
+  while(digitalRead(HALL_PIN))
   {
     steppermotor.move(1);
     steppermotor.run();
