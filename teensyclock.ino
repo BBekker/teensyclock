@@ -10,66 +10,24 @@
 #define WHEEL_GEAR_RATIO  100/99
 #define STEPS_PER_ROTATION STEPPER_STEPS_PER_ROTATION * STEPPER_GEAR_RATIO * WHEEL_GEAR_RATIO
 
-#define SECONDS_PER_ROTATION 60*60*12
+#define ROTATION_PER_STEP 0.000048003699327057935052324954148236055669435753587226237
+#define ROTATION_PER_SECOND ( 1.0 / 12.0 / 60.0 / 60.0)
+#define ROTATION_PER_MINUTE ( 1.0 / 12.0 / 60.0 )
+#define ROTATION_PER_HOUR (1.0 / 12.0)
+
 
 #define DS3231_ADDRESS  0x68
 #define DS3231_CONTROL  0x0E
 #define DS3231_STATUSREG 0x0F
 
+#define HALL_PIN 23
+#define LED_PIN 13
 
 IntervalTimer clocktick;
-uint32_t position; //Position in steps
-AccelStepper steppermotor = AccelStepper(8, 4, 2, 3, 1);
+double position; //Position in rotation
+double target;
+AccelStepper steppermotor = AccelStepper(8, 12, 10, 11, 9);
 
-///////////
-// RTC FUNCTIONS
-//////////
-
-byte bcd2byte(byte bcd)
-{
-  return (bcd & 0x0F) + ((bcd >> 4) *10);
-}
-
-byte bin2bcd(byte val)
-{
-  return (val % 10) + ((val / 10) << 4);
-}
-
-//Update the external RTC
-void updateRTC(unsigned int _year,unsigned int _month,unsigned int _day,unsigned int _hour,unsigned int _min,unsigned int _sec)
-{
-  Wire.beginTransmission(DS3231_ADDRESS);
-  Wire.write((byte)0); // start at location 0
-  Wire.write(bin2bcd(_sec));
-  Wire.write(bin2bcd(_min));
-  Wire.write(bin2bcd(_hour));
-  Wire.write(bin2bcd(0));
-  Wire.write(bin2bcd(_day));
-  Wire.write(bin2bcd(_month));
-  Wire.write(bin2bcd(_year - 2000));
-  Wire.endTransmission();
-}
-
-//Update the internal clock with the external RTC
-void updateTime()
-{
-  Wire.beginTransmission(DS3231_ADDRESS);
-  Wire.write((byte)0);  
-  Wire.endTransmission();
-
-  Wire.requestFrom(DS3231_ADDRESS, 7);
-  uint8_t ss = bcd2byte(Wire.read() & 0x7F);
-  uint8_t mm = bcd2byte(Wire.read());
-  uint8_t hh = bcd2byte(Wire.read());
-  Wire.read();
-  uint8_t d = bcd2byte(Wire.read());
-  uint8_t m = bcd2byte(Wire.read());
-  uint16_t y = bcd2byte(Wire.read()) + 2000;
-
-  setTime(hh, mm, ss, d, m,y);
-  //Get DS3231 time
-  //setTime(
-}
 
 //////////
 // Serial Function
@@ -130,12 +88,15 @@ void tick()
     updateTime();
   }
 
+  target = hour() * ROTATION_PER_HOUR + minute() * ROTATION_PER_MINUTE + second() * ROTATION_PER_SECOND;
+
+  uint32_t steps_to_set = 
   //Print current time for debug
   Serial.printf("%d:%d:%d , %d-%d-%d \n", hour(), minute(), second(), day(), month(), year());
 
   steppermotor.setMaxSpeed(500);
   steppermotor.setAcceleration(1000);
-  steppermotor.move(10);
+  steppermotor.move(50);
   
 }
 
@@ -151,6 +112,11 @@ void setup() {
   //Read current time from RTC
   Wire.begin();
   updateTime();
+
+  //Prep hall sensor
+  pinMode(HALL_PIN, INPUT_PULLUP);
+  pinMode(LED_PIN, OUTPUT);
+  
 }
 
 void loop() {
@@ -162,5 +128,7 @@ void loop() {
   }
   
   steppermotor.run();
+
+  digitalWrite(LED_PIN, !digitalRead(HALL_PIN));
   //delay(1000);
 }
