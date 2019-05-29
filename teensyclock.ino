@@ -120,7 +120,16 @@ void tick()
   int posinhour = steppermotor.angle / ROTATION_PER_HOUR;
   int posinmin = (steppermotor.angle - (posinhour * ROTATION_PER_HOUR)) /ROTATION_PER_MINUTE;
   Serial.printf("current position time: %d:%d\n", posinhour, posinmin);
-  steppermotor.move(steps_to_set);
+
+  if(steps_to_set == 0)
+  {
+    steppermotor.disableOutputs();
+  }
+  else
+  {
+    steppermotor.enableOutputs() 
+    steppermotor.move(steps_to_set);
+  }
 
   //Update our time with the real RTC time once a minute.
   if(second() == 0)
