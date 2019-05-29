@@ -3,13 +3,16 @@
 
 void ClockStepper::step4(long step)
 {
-  if(step - previousStep > 0)
+  if(step%4  ==  ((previousStep + 1)%4))
   {
     angle += ROTATION_PER_STEP;
-  } else if(step-previousStep < 0)
+  } else if(step%4  ==  ((previousStep - 1)%4))
   {
     angle -= ROTATION_PER_STEP;
-  }  
+  } else
+  {
+    Serial.printf("step %d Missing step! \n", step);
+  }
   previousStep = step;
   
   if(angle > 1.0)

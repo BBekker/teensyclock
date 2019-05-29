@@ -127,7 +127,7 @@ void tick()
   }
   else
   {
-    steppermotor.enableOutputs() 
+    steppermotor.enableOutputs();
     steppermotor.move(steps_to_set);
   }
 
@@ -159,7 +159,7 @@ void setup() {
   steppermotor.setMaxSpeed(200);
   steppermotor.setAcceleration(1000000);
   Serial.write("Homing...\n");
-  //homing();
+  homing();
   steppermotor.setAcceleration(1000);
   //Start clock
   //Run tick function once every second
