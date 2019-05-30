@@ -20,7 +20,7 @@
 #define DS3231_CONTROL  0x0E
 #define DS3231_STATUSREG 0x0F
 
-#define ANGLE_OFFSET (6.90/12.0)
+#define ANGLE_OFFSET (10.97/12.0)
 
 #define HALL_PIN 14
 #define LED_PIN 13
@@ -28,7 +28,7 @@
 
 IntervalTimer clocktick;
 double target;
-ClockStepper steppermotor = ClockStepper(AccelStepper::FULL4WIRE, 11, 10, 9, 12);
+ ClockStepper steppermotor = ClockStepper(AccelStepper::FULL4WIRE, 11, 10, 9, 12);
 //ClockStepper steppermotor = ClockStepper(AccelStepper::HALF4WIRE, 12, 10, 11, 9);
 
 
@@ -107,7 +107,7 @@ void tick()
   steps_to_set = (target - steppermotor.angle) / ROTATION_PER_STEP;
 
   //Beunfix for wraparound
-  if(steps_to_set < (int)(-0.5 / ROTATION_PER_STEP))
+  if(steps_to_set < 0.0)//(int)(-0.5 / ROTATION_PER_STEP))
   {
      steps_to_set += 1.0/ROTATION_PER_STEP;
   }
@@ -121,15 +121,15 @@ void tick()
   int posinmin = (steppermotor.angle - (posinhour * ROTATION_PER_HOUR)) /ROTATION_PER_MINUTE;
   Serial.printf("current position time: %d:%d\n", posinhour, posinmin);
 
-  if(steps_to_set == 0)
-  {
-    steppermotor.disableOutputs();
-  }
-  else
-  {
-    steppermotor.enableOutputs();
+//  if(steps_to_set == 0)
+//  {
+//    steppermotor.disableOutputs();
+//  }
+//  else
+//  {
+//    steppermotor.enableOutputs();
     steppermotor.move(steps_to_set);
-  }
+//  }
 
   //Update our time with the real RTC time once a minute.
   if(second() == 0)
@@ -175,6 +175,11 @@ void loop() {
   }
   
   steppermotor.run();
+
+  if((steppermotor.angle > ANGLE_OFFSET) && (steppermotor.angle < (ANGLE_OFFSET + 3 * ROTATION_PER_STEP)) && digitalRead(HALL_PIN))
+  {
+    homing();
+  }
 
   digitalWrite(LED_PIN, !digitalRead(HALL_PIN));
   //delay(1000);
